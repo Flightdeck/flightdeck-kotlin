@@ -1,9 +1,7 @@
 package com.flightdeck.kotlinlib
 
 import android.content.Context
-import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -42,7 +40,6 @@ class Flightdeck private constructor(config: Configuration) {
     data class StaticMetaData(
         val language: String?,
         val appVersion: String,
-        val appInstallDate: String?,
         val osName: String,
         val deviceModel: String,
         val deviceManufacturer: String,
@@ -66,7 +63,6 @@ class Flightdeck private constructor(config: Configuration) {
             staticMetaData = StaticMetaData(
                 language = Locale.getDefault().language,
                 appVersion = Build.VERSION.RELEASE,
-                appInstallDate = getAppInstallDate(),
                 osName = "Android",
                 deviceModel = Build.MODEL,
                 deviceManufacturer = Build.MANUFACTURER,
@@ -215,7 +211,6 @@ class Flightdeck private constructor(config: Configuration) {
             staticMetaData?.let { metaData ->
                 eventData.language = metaData.language
                 eventData.appVersion = metaData.appVersion
-                eventData.appInstallDate = metaData.appInstallDate
                 eventData.osName = metaData.osName
                 eventData.osVersion = metaData.osVersion
                 eventData.deviceModel = metaData.deviceModel
@@ -370,25 +365,6 @@ class Flightdeck private constructor(config: Configuration) {
             EventPeriod.Quarter -> {
                 (calendar.get(Calendar.MONTH) / 3) + 1
             }
-        }
-    }
-
-
-    /**
-     * Get app install date
-     *
-     * @return Install date string
-     */
-    private fun getAppInstallDate(): String? {
-        return try {
-            val packageInfo = context.packageManager.getPackageInfoCompatible(context.packageName, 0)
-            val installTime = Date(packageInfo.firstInstallTime)
-            val dateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) // Don't store exact time for privacy reasons
-            dateFormatter.timeZone = TimeZone.getTimeZone("UTC")
-            dateFormatter.format(installTime)
-        } catch (e: PackageManager.NameNotFoundException) {
-            Log.w("Flightdeck", "Unable to determine app install date")
-            null
         }
     }
 

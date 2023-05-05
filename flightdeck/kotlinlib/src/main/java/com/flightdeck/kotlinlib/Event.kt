@@ -31,9 +31,6 @@ data class Event(
     @SerialName("app_version")
     var appVersion: String? = null,
 
-    @SerialName("app_install_date")
-    var appInstallDate: String? = null,
-
     @SerialName("os_name")
     var osName: String? = null,
 
