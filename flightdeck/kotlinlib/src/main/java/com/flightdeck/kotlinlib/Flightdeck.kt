@@ -2,9 +2,12 @@ package com.flightdeck.kotlinlib
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -57,6 +60,12 @@ class Flightdeck private constructor(config: Configuration) {
         var events: MutableSet<String> = mutableSetOf()
     )
 
+    @Serializable
+    data class EventSetIndices(
+        var date: Int,
+        var events: List<Int> = listOf()
+    )
+
     init {
         // Set static metadata if tracked
         if (addEventMetadata) {
@@ -84,27 +93,23 @@ class Flightdeck private constructor(config: Configuration) {
                 }
             }
 
-            // Check if SharedPreferences exist for previous eventsTrackedBefore, and set those if time period matches current
-            val sharedPreferences = context.getSharedPreferences("FDEventsTrackedBefore", Context.MODE_PRIVATE)
-            val jsonString = sharedPreferences.getString("FDEventsTrackedBefore", null)
-            if (jsonString != null) {
-                val json = Json
-                val storedEvents: Map<EventPeriod, EventSet> = json.decodeFromString(jsonString)
+            // Retrieve eventsTrackedBefore from local storage
+            val sharedPreferences = context.getSharedPreferences("FlightdeckPrefs", Context.MODE_PRIVATE)
 
+            // Retrieve list with unique event names
+            sharedPreferences.getString("FDUniqueEvents", null)?.let { jsonString ->
+                val storedUniqueEventsArray: List<String> = Json.decodeFromString(jsonString)
+
+                // Retrieve events tracked before for every time period and convert EventSetIndices to EventSet
                 trackedBefore.forEach { (period, eventSet) ->
-                    storedEvents[period]?.let { storedEventSet ->
-                        if (storedEventSet.date == eventSet.date) {
-                            trackedBefore[period] = storedEventSet
+                    sharedPreferences.getString("FDEventsTrackedBefore.${period.name}", null)?.let { jsonString ->
+                        val storedEventSetIndices: EventSetIndices = Json.decodeFromString(jsonString)
+                        if (storedEventSetIndices.date == eventSet.date) {
+                            val eventNames = storedEventSetIndices.events.mapNotNull { index ->
+                                if (storedUniqueEventsArray.indices.contains(index)) storedUniqueEventsArray[index] else null
+                            }
+                            trackedBefore[period] = EventSet(date = storedEventSetIndices.date, events = eventNames.toMutableSet())
                         }
-                    }
-                }
-
-                // SharedPreferences data is cleaned for duplicates across periods. Revert this for use during session
-                // This makes sure that all events of a shorter time period are copied to the longer time periods
-                EventPeriod.values().forEachIndexed { index, period ->
-                    if (index > 1) {
-                        val prevPeriod = EventPeriod.values()[index - 1]
-                        trackedBefore[period]?.events?.addAll(trackedBefore[prevPeriod]?.events ?: emptySet())
                     }
                 }
             }
@@ -158,8 +163,7 @@ class Flightdeck private constructor(config: Configuration) {
 
     fun trackEvent(event: String, properties: Map<String, Any>? = null) {
         if (event.startsWith(automaticEventsPrefix)) {
-            // Replace 'println' with your preferred logging method
-            println("Flightdeck: Event name has forbidden prefix $automaticEventsPrefix")
+            Log.e("Flightdeck","Flightdeck: Event name has forbidden prefix $automaticEventsPrefix")
         } else {
             trackEventCore(event, properties)
         }
@@ -184,6 +188,7 @@ class Flightdeck private constructor(config: Configuration) {
      * @param properties properties dictionary
      */
     private fun trackEventCore(event: String, properties: Map<String, Any>? = null) {
+
         val currentDateTime = getCurrentDateTime()
 
         // Initialize a new Event object with event string and current UTC datetime
@@ -196,9 +201,9 @@ class Flightdeck private constructor(config: Configuration) {
         )
 
         // Set custom properties, merged with super properties, if any
-        val props = properties?.toMutableMap() ?: mutableMapOf()
+        val props: MutableMap<String, Any> = properties?.toMutableMap() ?: mutableMapOf()
         props.putAll(superProperties)
-        eventData.properties = JSONObject(props as MutableMap<Any?, Any?>).toString()
+        eventData.properties = JSONObject(props as MutableMap<String?, Any?>).toString()
 
         // Add metadata to event
         if (addEventMetadata) {
@@ -242,32 +247,47 @@ class Flightdeck private constructor(config: Configuration) {
         // Convert Event object to JSON
         val eventDataJSON = Json.encodeToString(eventData)
 
-        // Post event data
+        GlobalScope.launch {
+            post(eventDataJSON)
+        }
+    }
+
+    // Helper functions
+
+    /** Send event data **/
+    private suspend fun post(payload: String) {
+
         val url = URL("$eventAPIURL?name=$projectId")
         val connection = url.openConnection() as HttpURLConnection
         connection.requestMethod = "POST"
         connection.setRequestProperty("Authorization", "Bearer $projectToken")
         connection.setRequestProperty("Content-Type", "application/json")
+        connection.setRequestProperty("Accept", "application/json")
         connection.doOutput = true
 
         try {
             connection.outputStream.use { os ->
-                os.write(eventDataJSON.toByteArray())
+                os.write(payload.toByteArray())
                 os.flush()
             }
 
             val responseCode = connection.responseCode
             if (responseCode != HttpURLConnection.HTTP_OK) {
-                println("Flightdeck: Failed to send event to server. Response code: $responseCode")
+                Log.e(
+                    "Flightdeck",
+                    "Flightdeck: Failed to send event to server. Response code: $responseCode ${connection.responseMessage}"
+                )
             }
         } catch (e: Exception) {
-            println("Flightdeck: Failed to send event to server. Error: ${e.localizedMessage}")
+            Log.e(
+                "Flightdeck",
+                "Flightdeck: Failed to send event to server. Error: ${e.localizedMessage}"
+            )
+            e.printStackTrace()
         } finally {
             connection.disconnect()
         }
     }
-
-    // Helper functions
 
     /**
     Get the current UTC datetime, local datetime, and timezone code
@@ -418,22 +438,21 @@ class Flightdeck private constructor(config: Configuration) {
         private fun appTerminated() {
             if (!trackUniqueEvents) return
 
-            // Compress eventsTrackedBefore by removing duplicate sessions across time periods
-            val eventsTrackedBefore = eventsTrackedBefore.toMutableMap()
-            EventPeriod.values().forEachIndexed { index, period ->
-                if (index > 1) {
-                    val prevPeriod = EventPeriod.values()[index - 1]
-                    eventsTrackedBefore[period]?.events?.removeAll(eventsTrackedBefore[prevPeriod]?.events ?: emptySet())
-                }
-            }
+            // Create an array with unique events from all event periods combined
+            val uniqueEvents = eventsTrackedBefore.values.flatMap { it.events }.toSet()
+            val uniqueEventsArray = uniqueEvents.toList() // Turn into list for indices
 
-            // Store eventsTrackedBefore for use in later sessions
-            try {
-                val jsonString = Json.encodeToString(eventsTrackedBefore)
-                val sharedPreferences = context.getSharedPreferences("FDEventsTrackedBefore", Context.MODE_PRIVATE)
-                sharedPreferences.edit().putString("FDEventsTrackedBefore", jsonString).apply()
-            } catch (exception: Exception) {
-                // Handle exception, e.g., log error
+            // Store array with unique events
+            val encodedUniqueEvents = Json.encodeToString(uniqueEventsArray)
+            val sharedPreferences = context.getSharedPreferences("FDUniqueEvents", Context.MODE_PRIVATE)
+            sharedPreferences.edit().putString("FDUniqueEvents", encodedUniqueEvents).apply()
+
+            // Store events tracked before for every time period, using EventSetIndices for storage space optimization
+            eventsTrackedBefore.forEach { (eventPeriod, eventSet) ->
+                val eventIndices = eventSet.events.mapNotNull { uniqueEventsArray.indexOf(it) }
+                val eventSetWithIndices = EventSetIndices(date = eventSet.date, events = eventIndices)
+                val encodedData = Json.encodeToString(eventSetWithIndices)
+                sharedPreferences.edit().putString("FDEventsTrackedBefore.${eventPeriod.name}", encodedData).apply()
             }
         }
     }

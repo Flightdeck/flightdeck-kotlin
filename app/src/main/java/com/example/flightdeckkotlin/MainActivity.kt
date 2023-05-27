@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun DemoSection() {
     val flightdeck = Flightdeck.getInstance()
+    var tapCount: Int = 0;
 
     Column(
         modifier = Modifier.width(100.dp).height(100.dp).background(
@@ -70,7 +71,8 @@ fun DemoSection() {
         Text("Flightdeck", fontWeight = FontWeight.Bold, fontSize = 40.sp, color = Color.White,
             modifier = Modifier.padding(bottom = 20.dp))
         Button(onClick = {
-            flightdeck.debug()
+            flightdeck.trackEvent("button-tap", mapOf("tap-count" to tapCount))
+            tapCount++
         }) {
             Text("Track this button")
         }
