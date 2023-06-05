@@ -21,9 +21,9 @@ jobs:
 
         # Builds the release artifacts of the library
       - name: Release build
-        run: ./gradlew :flightdeck:assembleRelease
+        run: ./gradlew :flightdeck:assemble
         # Generates other artifacts (javadocJar is optional)
-      - name: Source jar and dokka
+      - name: Source jar
         run: ./gradlew androidSourcesJar
 
         # Runs upload, and then closes & releases the repository
