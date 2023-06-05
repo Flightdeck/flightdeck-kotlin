@@ -1,13 +1,15 @@
 package com.flightdeck.kotlinlib
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -69,13 +71,14 @@ class Flightdeck private constructor(config: Configuration) {
     init {
         // Set static metadata if tracked
         if (addEventMetadata) {
+
             staticMetaData = StaticMetaData(
                 language = Locale.getDefault().language,
-                appVersion = Build.VERSION.RELEASE,
+                appVersion = context.getPackageInfo().versionName,
                 osName = "Android",
                 deviceModel = Build.MODEL,
                 deviceManufacturer = Build.MANUFACTURER,
-                osVersion = Build.VERSION.BASE_OS.split("\\.".toRegex()).firstOrNull()
+                osVersion = Build.VERSION.RELEASE.substringBefore(".")
             )
         }
 
@@ -203,7 +206,8 @@ class Flightdeck private constructor(config: Configuration) {
         // Set custom properties, merged with super properties, if any
         val props: MutableMap<String, Any> = properties?.toMutableMap() ?: mutableMapOf()
         props.putAll(superProperties)
-        eventData.properties = JSONObject(props as MutableMap<String?, Any?>).toString()
+        val convertedProps: Map<String?, Any?> = props.mapKeys { it.key }
+        eventData.properties = JSONObject(convertedProps).toString()
 
         // Add metadata to event
         if (addEventMetadata) {
@@ -247,7 +251,9 @@ class Flightdeck private constructor(config: Configuration) {
         // Convert Event object to JSON
         val eventDataJSON = Json.encodeToString(eventData)
 
-        GlobalScope.launch {
+        val job = Job()
+        val scope = CoroutineScope(job + Dispatchers.IO)
+        scope.launch {
             post(eventDataJSON)
         }
     }
@@ -255,7 +261,7 @@ class Flightdeck private constructor(config: Configuration) {
     // Helper functions
 
     /** Send event data **/
-    private suspend fun post(payload: String) {
+    private fun post(payload: String) {
 
         val url = URL("$eventAPIURL?name=$projectId")
         val connection = url.openConnection() as HttpURLConnection
@@ -272,10 +278,11 @@ class Flightdeck private constructor(config: Configuration) {
             }
 
             val responseCode = connection.responseCode
-            if (responseCode != HttpURLConnection.HTTP_OK) {
+            if (responseCode != HttpURLConnection.HTTP_OK && responseCode != HttpURLConnection.HTTP_ACCEPTED) {
+                val content = connection.inputStream.bufferedReader().use { it.readText() }
                 Log.e(
                     "Flightdeck",
-                    "Flightdeck: Failed to send event to server. Response code: $responseCode ${connection.responseMessage}"
+                    "Flightdeck: Failed to send event to server. Response code: $responseCode, Error message: $content"
                 )
             }
         } catch (e: Exception) {
@@ -302,6 +309,7 @@ class Flightdeck private constructor(config: Configuration) {
         val timezone: String
     )
 
+    @SuppressLint("SimpleDateFormat")
     private fun getCurrentDateTime(): CurrentDateTime {
         val dateNow = Date()
         val dateFormatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
@@ -457,4 +465,13 @@ class Flightdeck private constructor(config: Configuration) {
         }
     }
 
+}
+
+@Suppress("DEPRECATION")
+fun Context.getPackageInfo(): PackageInfo {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+    } else {
+        packageManager.getPackageInfo(packageName, 0)
+    }
 }

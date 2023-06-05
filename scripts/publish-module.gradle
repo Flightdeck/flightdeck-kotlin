@@ -1,9 +1,5 @@
-plugins {
-    id "java-library"
-    id "maven-publish"
-    id "signing"
-    id "io.github.gradle-nexus.publish-plugin" version "1.3.0"
-}
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
 
 task androidSourcesJar(type: Jar) {
     archiveClassifier.set('sources')
@@ -28,7 +24,7 @@ version = PUBLISH_VERSION
 afterEvaluate {
     publishing {
         publications {
-            relase(MavenPublication) {
+            release(MavenPublication) {
                 // The coordinates of the library, being set from variables that
                 // we'll set up later
                 groupId PUBLISH_GROUP_ID
@@ -56,7 +52,7 @@ afterEvaluate {
                         }
                     }
                     developers {
-                        devloper {
+                        developer {
                             id = 'flightdeck'
                             name = 'Flightdeck'
                             email = 'support@flightdeck.cc'
