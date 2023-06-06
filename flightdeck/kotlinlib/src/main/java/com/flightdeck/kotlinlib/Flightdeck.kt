@@ -23,7 +23,7 @@ import java.util.*
 class Flightdeck private constructor(config: Configuration) {
     private val projectId = config.projectId
     private val projectToken = config.projectToken
-    private val context = config.context
+    private val context = config.context.applicationContext
     private val addEventMetadata = config.addEventMetadata
     private val trackAutomaticEvents = config.trackAutomaticEvents
     private val trackUniqueEvents = config.trackUniqueEvents
@@ -125,16 +125,18 @@ class Flightdeck private constructor(config: Configuration) {
     }
 
     companion object {
+        @SuppressLint("StaticFieldLeak")
+        @Volatile
         private var instance: Flightdeck? = null
 
         fun getInstance(config: Configuration? = null): Flightdeck {
-            if (instance == null) {
-                if (config == null) {
+            return instance ?: synchronized(this) {
+                instance ?: if (config != null) {
+                    Flightdeck(config).also { instance = it }
+                } else {
                     throw IllegalStateException("Flightdeck must be initialized with a Configuration first.")
                 }
-                instance = Flightdeck(config)
             }
-            return instance!!
         }
     }
 
@@ -457,7 +459,7 @@ class Flightdeck private constructor(config: Configuration) {
 
             // Store events tracked before for every time period, using EventSetIndices for storage space optimization
             eventsTrackedBefore.forEach { (eventPeriod, eventSet) ->
-                val eventIndices = eventSet.events.mapNotNull { uniqueEventsArray.indexOf(it) }
+                val eventIndices = eventSet.events.map { uniqueEventsArray.indexOf(it) }
                 val eventSetWithIndices = EventSetIndices(date = eventSet.date, events = eventIndices)
                 val encodedData = Json.encodeToString(eventSetWithIndices)
                 sharedPreferences.edit().putString("FDEventsTrackedBefore.${eventPeriod.name}", encodedData).apply()
