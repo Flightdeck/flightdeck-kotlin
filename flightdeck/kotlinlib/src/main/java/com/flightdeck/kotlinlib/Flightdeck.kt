@@ -29,7 +29,7 @@ class Flightdeck private constructor(config: Configuration) {
     private val trackUniqueEvents = config.trackUniqueEvents
 
     private val clientType = "AndroidLib"
-    private val clientVersion = "1.0.0"
+    private val clientVersion = "1.0.5"
     private val clientConfig: String = "${if (addEventMetadata) 1 else 0}${if (trackAutomaticEvents) 1 else 0}${if (trackUniqueEvents) 1 else 0}"
     private val eventAPIURL = "https://api.flightdeck.cc/v0/events"
     private val automaticEventsPrefix = "(FD) "
