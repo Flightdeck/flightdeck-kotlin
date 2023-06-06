@@ -18,9 +18,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import cc.flightdeck.kotlinlib.Configuration
+import cc.flightdeck.kotlinlib.Flightdeck
 import com.example.flightdeckkotlin.ui.theme.FlightdeckKotlinTheme
-import com.flightdeck.kotlinlib.Configuration
-import com.flightdeck.kotlinlib.Flightdeck
 
 class MainActivity : ComponentActivity() {
 
@@ -55,8 +55,12 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun DemoSection() {
-    val flightdeck = Flightdeck.getInstance()
-    var tapCount: Int = 0;
+    var tapCount = 0
+
+    Flightdeck.getInstance().setSuperProperties(mapOf(
+        "Subscription type" to "premium",
+        "Purchase count" to 12
+    ))
 
     Column(
         modifier = Modifier.width(100.dp).height(100.dp).background(
@@ -71,7 +75,7 @@ fun DemoSection() {
         Text("Flightdeck", fontWeight = FontWeight.Bold, fontSize = 40.sp, color = Color.White,
             modifier = Modifier.padding(bottom = 20.dp))
         Button(onClick = {
-            flightdeck.trackEvent("button-tap", mapOf("tap-count" to tapCount))
+            Flightdeck.getInstance().trackEvent("button-tap", mapOf("tap-count" to tapCount))
             tapCount++
         }) {
             Text("Track this button")

@@ -1,4 +1,4 @@
-package com.flightdeck.kotlinlib
+package cc.flightdeck.kotlinlib
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -29,13 +29,13 @@ class Flightdeck private constructor(config: Configuration) {
     private val trackUniqueEvents = config.trackUniqueEvents
 
     private val clientType = "AndroidLib"
-    private val clientVersion = "1.0.6"
+    private val clientVersion = "1.0.7"
     private val clientConfig: String = "${if (addEventMetadata) 1 else 0}${if (trackAutomaticEvents) 1 else 0}${if (trackUniqueEvents) 1 else 0}"
     private val eventAPIURL = "https://api.flightdeck.cc/v0/events"
     private val automaticEventsPrefix = "(FD) "
 
     private var staticMetaData: StaticMetaData? = null
-    private var superProperties = mutableMapOf<String, Any>()
+    private var superProperties = mapOf<String, Any>()
     private val eventsTrackedThisSession = mutableListOf<String>()
     private var eventsTrackedBefore = mutableMapOf<EventPeriod, EventSet>()
     private var movedToBackgroundTime: Date? = null
@@ -69,6 +69,7 @@ class Flightdeck private constructor(config: Configuration) {
     )
 
     init {
+
         // Set static metadata if tracked
         if (addEventMetadata) {
 
@@ -97,7 +98,7 @@ class Flightdeck private constructor(config: Configuration) {
             }
 
             // Retrieve eventsTrackedBefore from local storage
-            val sharedPreferences = context.getSharedPreferences("FlightdeckPrefs", Context.MODE_PRIVATE)
+            val sharedPreferences = context.getSharedPreferences("FDUniqueEvents", Context.MODE_PRIVATE)
 
             // Retrieve list with unique event names
             sharedPreferences.getString("FDUniqueEvents", null)?.let { jsonString ->
@@ -149,7 +150,7 @@ class Flightdeck private constructor(config: Configuration) {
      *
      * @param properties Properties dictionary
      */
-    fun setSuperProperties(properties: MutableMap<String, Any>) {
+    fun setSuperProperties(properties: Map<String, Any>) {
         superProperties = properties
     }
 
@@ -349,21 +350,25 @@ class Flightdeck private constructor(config: Configuration) {
     /**
     Check if a specified event has been tracked before during the current period and set event as tracked if it was the first occurrence.
 
-    - parameter event:     Event name
-    - parameter period:    Period string ("day", "month")
-    - returns:             Dictionary of EventPeriod keys with boolean reflecting
-    whether an event has been tracked before during the period
+    - parameter event:      Event name
+    - parameter period:     Period string ("day", "month")
+    - returns:              Dictionary of EventPeriod keys with boolean set to true if event is first of
+                            period, and false if event has been tracked before in current period.
      */
     private fun trackFirstOfPeriod(event: String): Map<EventPeriod, Boolean> {
         return EventPeriod.values().associateWith { period ->
             eventsTrackedBefore.getOrPut(period) {
                 EventSet(date = getCurrentDatePeriod(period))
             }.let { eventSet ->
-                if (eventSet.date == getCurrentDatePeriod(period) && event !in eventSet.events) {
+                val currentDatePeriod = getCurrentDatePeriod(period)
+                if (eventSet.date != currentDatePeriod) {
+                    eventsTrackedBefore[period] = EventSet(date = currentDatePeriod, events = mutableSetOf())
+                    true
+                } else if (event in eventSet.events) {
+                    false
+                } else {
                     eventsTrackedBefore[period] = eventSet.copy(events = eventSet.events.apply { add(event) })
                     true
-                } else {
-                    false
                 }
             }
         }
@@ -411,23 +416,20 @@ class Flightdeck private constructor(config: Configuration) {
      */
     inner class AppLifecycleObserver : DefaultLifecycleObserver {
 
-        override fun onStop(owner: LifecycleOwner) {
-            super.onStop(owner)
-            appMovedToBackground()
-        }
-
         override fun onStart(owner: LifecycleOwner) {
             super.onStart(owner)
             appMovedToForeground()
         }
 
-        override fun onDestroy(owner: LifecycleOwner) {
-            super.onDestroy(owner)
-            appTerminated()
+        override fun onStop(owner: LifecycleOwner) {
+            super.onStop(owner)
+            movedToBackgroundTime = Date()
+            storeTrackedEvents()
         }
 
-        private fun appMovedToBackground() {
-            movedToBackgroundTime = Date()
+        override fun onDestroy(owner: LifecycleOwner) {
+            super.onDestroy(owner)
+            storeTrackedEvents()
         }
 
         private fun appMovedToForeground() {
@@ -445,7 +447,8 @@ class Flightdeck private constructor(config: Configuration) {
             }
         }
 
-        private fun appTerminated() {
+        private fun storeTrackedEvents() {
+
             if (!trackUniqueEvents) return
 
             // Create an array with unique events from all event periods combined

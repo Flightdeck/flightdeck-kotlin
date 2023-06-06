@@ -1,4 +1,4 @@
-package com.flightdeck.kotlinlib
+package cc.flightdeck.kotlinlib
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
