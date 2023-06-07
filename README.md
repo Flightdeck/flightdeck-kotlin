@@ -1,4 +1,4 @@
- ![apache2short](https://user-images.githubusercontent.com/3425455/214007387-ced3e898-63e7-4c66-bc08-e113be00e3c3.svg) [![Percentage of issues still open](http://isitmaintained.com/badge/open/Flightdeck/flightdeck-swift.svg)](http://isitmaintained.com/project/Flightdeck/flightdeck-swift "Percentage of issues still open") [![Better Uptime Badge](https://betteruptime.com/status-badges/v1/monitor/lmrx.svg)](https://status.flightdeck.cc/)
+![maven central](https://maven-badges.herokuapp.com/maven-central/cc.flightdeck/flightdeck-kotlin/badge.png) ![apache2short](https://user-images.githubusercontent.com/3425455/214007387-ced3e898-63e7-4c66-bc08-e113be00e3c3.svg) [![Percentage of issues still open](http://isitmaintained.com/badge/open/Flightdeck/flightdeck-swift.svg)](http://isitmaintained.com/project/Flightdeck/flightdeck-swift "Percentage of issues still open") [![Better Uptime Badge](https://betteruptime.com/status-badges/v1/monitor/lmrx.svg)](https://status.flightdeck.cc/)
 
 
 
@@ -18,9 +18,12 @@ Request permission to access internet by adding the following line to your **And
 
 ## Initialize Flightdeck
 
-### SwiftUI
-Import FlightDeck into your `@main` struct, and initialize Flightdeck within `init()`:
+Import FlightDeck into your main activity and initialize it in your code by calling Flightdeck.getInstance() with the correct configuration. You can find your **projectId** and **projectToken** in your Flightdeck project settings. Make sure to include your application context exactly as in the example below.
+
 ```kotlin
+import cc.flightdeck.kotlinlib.Configuration
+import cc.flightdeck.kotlinlib.Flightdeck
+
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,6 +46,8 @@ class MainActivity : ComponentActivity() {
 `Flightdeck.initialize(...)`
 
 #### Parameters
+
+The **Configuration** object can have the following parameters:
 
 | Parameter              | Required      | Type                         | Description                                                                 |
 | ---------------------- | ------------- | ---------------------------- | --------------------------------------------------------------------------- |
@@ -81,7 +86,7 @@ Flightdeck.getInstance().trackEvent("New project created", mapOf(
 
 Set properties that are automatically sent with each event.
 
-```swift
+```kotlin
 Flightdeck.getInstance().setSuperProperties(mapOf(
   "Subscription type" to "premium",
   "Active projects" to 12,
