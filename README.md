@@ -8,7 +8,7 @@
 ## Installation
 Add the following line to the dependencies section in **app/build.gradle**:
 ```
-implementation 'cc.flightdeck:flightdeck-kotlin:1.x'
+implementation 'cc.flightdeck:flightdeck-kotlin:1.+'
 ```
 
 Request permission to access internet by adding the following line to your **AndroidManifest.xml**:
