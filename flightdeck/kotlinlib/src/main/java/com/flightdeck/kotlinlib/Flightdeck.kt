@@ -29,7 +29,7 @@ class Flightdeck private constructor(config: Configuration) {
     private val trackUniqueEvents = config.trackUniqueEvents
 
     private val clientType = "AndroidLib"
-    private val clientVersion = "1.0.7"
+    private val clientVersion = "1.1.0"
     private val clientConfig: String = "${if (addEventMetadata) 1 else 0}${if (trackAutomaticEvents) 1 else 0}${if (trackUniqueEvents) 1 else 0}"
     private val eventAPIURL = "https://api.flightdeck.cc/v0/events"
     private val automaticEventsPrefix = "(FD) "
@@ -48,7 +48,8 @@ class Flightdeck private constructor(config: Configuration) {
         val osName: String,
         val deviceModel: String,
         val deviceManufacturer: String,
-        val osVersion: String?
+        val osVersion: String?,
+        val debug: Boolean
     )
 
     @Serializable
@@ -79,7 +80,8 @@ class Flightdeck private constructor(config: Configuration) {
                 osName = "Android",
                 deviceModel = Build.MODEL,
                 deviceManufacturer = Build.MANUFACTURER,
-                osVersion = Build.VERSION.RELEASE.substringBefore(".")
+                osVersion = Build.VERSION.RELEASE.substringBefore("."),
+                debug = BuildConfig.DEBUG
             )
         }
 
@@ -227,6 +229,7 @@ class Flightdeck private constructor(config: Configuration) {
                 eventData.osVersion = metaData.osVersion
                 eventData.deviceModel = metaData.deviceModel
                 eventData.deviceManufacturer = metaData.deviceManufacturer
+                eventData.debug = metaData.debug
             }
         }
 

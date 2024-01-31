@@ -37,6 +37,9 @@ data class Event(
     @SerialName("os_version")
     var osVersion: String? = null,
 
+    @SerialName("debug")
+    var debug: Boolean? = null,
+
     @SerialName("device_manufacturer")
     var deviceManufacturer: String? = null,
 
